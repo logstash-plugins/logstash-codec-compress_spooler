@@ -8,43 +8,50 @@ class LogStash::Codecs::CompressSpooler < LogStash::Codecs::Base
   config :compress_level, :validate => :number, :default => 6
 
   public
+
   def register
     require "msgpack"
     require "zlib"
     @buffer = []
   end
 
-  public
   def decode(data)
-    z = Zlib::Inflate.new
-    data = MessagePack.unpack(z.inflate(data))
-    z.finish
-    z.close
-    data.each do |event|
-      event = LogStash::Event.new(event)
-      event["@timestamp"] = Time.at(event["@timestamp"]).utc if event["@timestamp"].is_a? Float
-      yield event
+    decompress(data).each do |event|
+      yield(LogStash::Event.new(event))
     end
   end # def decode
 
-  public
-  def encode(data)
+  def encode(event)
     if @buffer.length >= @spool_size
-      z = Zlib::Deflate.new(@compress_level)
-      @on_event.call z.deflate(MessagePack.pack(@buffer), Zlib::FINISH)
-      z.close
+      @on_event.call(compress(@buffer, @compress_level))
       @buffer.clear
     else
-      data["@timestamp"] = data["@timestamp"].to_f
-      @buffer << data.to_hash
+      # use normalize to make sure returned Hash is pure Ruby for
+      # MessagePack#pack which relies on pure Ruby object recognition
+      @buffer << LogStash::Util.normalize(event.to_hash).merge(LogStash::Event::TIMESTAMP => event.timestamp.to_iso8601)
     end
   end # def encode
 
-  public
   def teardown
-    if !@buffer.nil? and @buffer.length > 0
-      @on_event.call @buffer
-    end
+    return if @buffer.empty?
+    @on_event.call(compress(@buffer, @compress_level))
     @buffer.clear
+  end
+
+  private
+
+  def compress(data, level)
+    z = Zlib::Deflate.new(level)
+    result = z.deflate(MessagePack.pack(data), Zlib::FINISH)
+    z.close
+    result
+  end
+
+  def decompress(data)
+    z = Zlib::Inflate.new
+    result = MessagePack.unpack(z.inflate(data))
+    z.finish
+    z.close
+    result
   end
 end # class LogStash::Codecs::CompressSpooler
