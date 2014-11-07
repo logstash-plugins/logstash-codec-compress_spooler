@@ -21,12 +21,12 @@ Gem::Specification.new do |s|
 
   # Gem dependencies
   s.add_runtime_dependency "logstash-core", '>= 1.4.0', '< 2.0.0'
+  s.add_development_dependency 'logstash-devutils'
 
   if RUBY_PLATFORM == 'java'
     s.platform = RUBY_PLATFORM
+    s.add_runtime_dependency "msgpack-jruby" #(Apache 2.0 license)
+  else
+    s.add_runtime_dependency "msgpack" #(Apache 2.0 license)
   end
-  s.add_runtime_dependency 'msgpack-jruby'
-
-  s.add_development_dependency 'logstash-devutils'
 end
-
