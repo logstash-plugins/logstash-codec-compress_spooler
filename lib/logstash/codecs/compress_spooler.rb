@@ -31,7 +31,7 @@ class LogStash::Codecs::CompressSpooler < LogStash::Codecs::Base
   def encode(data)
     if @buffer.length >= @spool_size
       z = Zlib::Deflate.new(@compress_level)
-      @on_event.call z.deflate(MessagePack.pack(@buffer), Zlib::FINISH)
+      @on_event.call data, z.deflate(MessagePack.pack(@buffer), Zlib::FINISH)
       z.close
       @buffer.clear
     else
@@ -43,7 +43,7 @@ class LogStash::Codecs::CompressSpooler < LogStash::Codecs::Base
   public
   def teardown
     if !@buffer.nil? and @buffer.length > 0
-      @on_event.call @buffer
+      @on_event.call LogStash::Event.new, @buffer
     end
     @buffer.clear
   end
