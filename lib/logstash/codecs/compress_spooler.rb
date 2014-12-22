@@ -1,5 +1,6 @@
 # encoding: utf-8
 require "logstash/codecs/base"
+require "logstash/timestamp"
 
 class LogStash::Codecs::CompressSpooler < LogStash::Codecs::Base
   config_name 'compress_spooler'
@@ -21,9 +22,9 @@ class LogStash::Codecs::CompressSpooler < LogStash::Codecs::Base
     z.finish
     z.close
     data.each do |event|
-      event = LogStash::Event.new(event)
-      event["@timestamp"] = Time.at(event["@timestamp_f"]).utc if event["@timestamp_f"].is_a? Float
+      event["@timestamp"] = LogStash::Timestamp.coerce(Time.at(event["@timestamp_f"])) if event["@timestamp_f"].is_a? Float
       event.remove("@timestamp_f")
+      yield event
     end
   end # def decode
 
