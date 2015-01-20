@@ -3,7 +3,6 @@ require "logstash/codecs/base"
 
 class LogStash::Codecs::CompressSpooler < LogStash::Codecs::Base
   config_name 'compress_spooler'
-  milestone 1
   config :spool_size, :validate => :number, :default => 50
   config :compress_level, :validate => :number, :default => 6
 
