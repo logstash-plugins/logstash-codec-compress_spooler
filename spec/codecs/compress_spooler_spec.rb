@@ -98,8 +98,6 @@ describe LogStash::Codecs::CompressSpooler do
 
       before(:each) do
         codec.on_event{|data| results << data}
-        # spool_size is one so encode twice to trigger encoding on the 2nd one
-        codec.encode(event)
         codec.encode(event)
       end
 
@@ -112,8 +110,6 @@ describe LogStash::Codecs::CompressSpooler do
 
       before(:each) do
         codec.on_event{|data| results << data}
-        # spool_size is one so encode twice to trigger encoding on the 2nd one
-        codec.encode(event)
         codec.encode(event)
       end
       include_examples "Encoding data"

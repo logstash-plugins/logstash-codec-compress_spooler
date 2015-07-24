@@ -21,13 +21,13 @@ class LogStash::Codecs::CompressSpooler < LogStash::Codecs::Base
   end # def decode
 
   def encode(event)
+    # use normalize to make sure returned Hash is pure Ruby for
+    # MessagePack#pack which relies on pure Ruby object recognition
+    @buffer << LogStash::Util.normalize(event.to_hash).merge(LogStash::Event::TIMESTAMP => event.timestamp.to_iso8601)
+    # If necessary, we flush the buffer and get the data compressed
     if @buffer.length >= @spool_size
       @on_event.call(compress(@buffer, @compress_level))
       @buffer.clear
-    else
-      # use normalize to make sure returned Hash is pure Ruby for
-      # MessagePack#pack which relies on pure Ruby object recognition
-      @buffer << LogStash::Util.normalize(event.to_hash).merge(LogStash::Event::TIMESTAMP => event.timestamp.to_iso8601)
     end
   end # def encode
 
