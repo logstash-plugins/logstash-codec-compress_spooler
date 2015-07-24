@@ -1,103 +1,134 @@
 require "logstash/devutils/rspec/spec_helper"
 require "logstash/codecs/compress_spooler"
+require "msgpack"
+require "zlib"
 
 describe LogStash::Codecs::CompressSpooler do
 
-  it "should work" do
-    expect(true).to be true
+  subject(:codec) { LogStash::Codecs::CompressSpooler.new }
+
+  describe "register and teardown" do
+
+    it "registers without any error" do
+      expect { codec.register }.to_not raise_error
+    end
+
+    it "tearndown without erros" do
+      expect { codec.teardown }.to_not raise_error
+    end
+
   end
 
-  context "#decode" do
-    it "should return an event from msgpack data" do
-      codec = LogStash::Codecs::CompressSpooler.new
-      events = [{"foo" => "bar", "baz" => {"bah" => ["a", "b", "c"]}, "@timestamp" => "2014-05-30T02:52:17.929Z"}]
+  describe "#decode" do
 
-      z = Zlib::Deflate.new
-      data = z.deflate(MessagePack.pack(events), Zlib::FINISH)
-      z.close
+    let(:events) { [{"foo" => "bar", "baz" => {"bah" => ["a", "b", "c"]}, "@timestamp" => "2014-05-30T02:52:17.929Z"}] }
+    let!(:zlib)   { Zlib::Deflate.new }
+    let!(:data)   { zlib.deflate(MessagePack.pack(events), Zlib::FINISH) }
 
+    before(:each) do
+      zlib.close
+    end
+
+    it "return single properties as expected from message pack" do
       codec.decode(data) do |event|
-        insist { event.is_a? LogStash::Event }
-        insist { event["foo"] } == events.first["foo"]
-        insist { event["baz"] } == events.first["baz"]
-        insist { event["bah"] } == events.first["bah"]
-        insist { event["@timestamp"].to_iso8601 } == events.first["@timestamp"]
+        expect(event.to_hash).to include("foo" => "bar")
       end
     end
+
+    it "return nested hash as expected from message pack" do
+      codec.decode(data) do |event|
+        expect(event.to_hash).to include("baz" => {"bah" => ["a", "b", "c"]} )
+      end
+    end
+
+    it "return a proper codec timestamp from message pack" do
+      codec.decode(data) do |event|
+        expect( event["@timestamp"].to_iso8601).to eq("2014-05-30T02:52:17.929Z")
+      end
+    end
+
   end
 
-  context "#encode" do
+  shared_examples 'Encoding data' do
 
-    it "should return compressed data from pure ruby hash" do
-      codec = LogStash::Codecs::CompressSpooler.new("spool_size" => 1)
-      data = {"foo" => "bar", "baz" => {"bah" => ["a","b","c"]}, "@timestamp" => "2014-05-30T02:52:17.929Z"}
-      event = LogStash::Event.new(data)
-      results = []
-      codec.on_event{|data| results << data}
-
-      # spool_size is one so encode twice to trigger encoding on the 2nd one
-      codec.encode(event)
-      codec.encode(event)
-
-      insist { results.size } == 1
-      z = Zlib::Inflate.new
-      events = MessagePack.unpack(z.inflate(results.first))
-      z.finish
-      z.close
-
-      insist { events.first["foo"] } == data["foo"]
-      insist { events.first["baz"] } == data["baz"]
-      insist { events.first["bah"] } == data["bah"]
-      insist { events.first["@timestamp"] } == "2014-05-30T02:52:17.929Z"
-      insist { events.first["@timestamp"] } == event["@timestamp"].to_iso8601
+    it "encode one element" do
+      expect(results.size).to eq(1)
     end
 
-    it "should return compressed data from deserialized json with normalization" do
-      codec = LogStash::Codecs::CompressSpooler.new("spool_size" => 1)
-      data = LogStash::Json.load('{"foo": "bar", "baz": {"bah": ["a","b","c"]}, "@timestamp": "2014-05-30T02:52:17.929Z"}')
-      event = LogStash::Event.new(data)
-      results = []
-      codec.on_event{|data| results << data}
 
-      # spool_size is one so encode twice to trigger encoding on the 2nd one
-      codec.encode(event)
-      codec.encode(event)
+    context "and inspecting compressed results" do
 
-      insist { results.size } == 1
-      z = Zlib::Inflate.new
-      events = MessagePack.unpack(z.inflate(results.first))
-      z.finish
-      z.close
+      let!(:zlib)   { Zlib::Inflate.new }
+      let!(:events) { MessagePack.unpack(zlib.inflate(results.first)) }
+      let(:unpack_event)   { events.first }
 
-      insist { events.first["foo"] } == data["foo"]
-      insist { events.first["baz"] } == data["baz"]
-      insist { events.first["bah"] } == data["bah"]
-      insist { events.first["@timestamp"] } == "2014-05-30T02:52:17.929Z"
-      insist { events.first["@timestamp"] } == event["@timestamp"].to_iso8601
+      before(:each) do
+        zlib.finish
+        zlib.close
+      end
+
+      it "return single properties as expected from message pack" do
+        expect(unpack_event).to include("foo" => "bar")
+      end
+
+      it "return nested hash as expected from message pack" do
+        expect(unpack_event).to include("baz" => {"bah" => ["a", "b", "c"]} )
+      end
+
+      it "return a proper codec timestamp from message pack" do
+        expect(unpack_event["@timestamp"]).to eq("2014-05-30T02:52:17.929Z")
+      end
+
+      it "return the timestamp as iso8601" do
+        expect(unpack_event["@timestamp"]).to eq(event["@timestamp"].to_iso8601)
+      end
     end
 
-    it "should support teardown and flush pending data" do
-      codec = LogStash::Codecs::CompressSpooler.new("spool_size" => 1)
-      data = {"foo" => "bar", "baz" => {"bah" => ["a","b","c"]}, "@timestamp" => "2014-05-30T02:52:17.929Z"}
-      event = LogStash::Event.new(data)
-      results = []
-      codec.on_event{|data| results << data}
-
-      codec.encode(event)
-      codec.teardown
-
-      insist { results.size } == 1
-      z = Zlib::Inflate.new
-      events = MessagePack.unpack(z.inflate(results.first))
-      z.finish
-      z.close
-
-      insist { events.first["foo"] } == data["foo"]
-      insist { events.first["baz"] } == data["baz"]
-      insist { events.first["bah"] } == data["bah"]
-      insist { events.first["@timestamp"] } == "2014-05-30T02:52:17.929Z"
-      insist { events.first["@timestamp"] } == event["@timestamp"].to_iso8601
-    end
   end
 
+  describe "#encode" do
+    subject(:codec) { LogStash::Codecs::CompressSpooler.new("spool_size" => 1) }
+
+    let(:event)     { LogStash::Event.new(data) }
+    let(:results)   { [] }
+
+    context "encoding a ruby hash" do
+
+      let(:data) { {"foo" => "bar", "baz" => {"bah" => ["a","b","c"]}, "@timestamp" => "2014-05-30T02:52:17.929Z"} }
+
+      before(:each) do
+        codec.on_event{|data| results << data}
+        # spool_size is one so encode twice to trigger encoding on the 2nd one
+        codec.encode(event)
+        codec.encode(event)
+      end
+
+      include_examples "Encoding data"
+    end
+
+    context "encoding a json with normalization" do
+
+      let(:data) { LogStash::Json.load('{"foo": "bar", "baz": {"bah": ["a","b","c"]}, "@timestamp": "2014-05-30T02:52:17.929Z"}') }
+
+      before(:each) do
+        codec.on_event{|data| results << data}
+        # spool_size is one so encode twice to trigger encoding on the 2nd one
+        codec.encode(event)
+        codec.encode(event)
+      end
+      include_examples "Encoding data"
+    end
+
+    context "when flussing pending data during teardown" do
+      let(:data)  { {"foo" => "bar", "baz" => {"bah" => ["a","b","c"]}, "@timestamp" => "2014-05-30T02:52:17.929Z"} }
+
+      before(:each) do
+        codec.on_event{|data| results << data}
+        codec.encode(event)
+        codec.teardown
+      end
+      include_examples "Encoding data"
+    end
+
+  end
 end
