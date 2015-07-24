@@ -128,7 +128,25 @@ describe LogStash::Codecs::CompressSpooler do
         codec.teardown
       end
       include_examples "Encoding data"
-    end
 
+      context "message spooling when flusing events to the compressor" do
+        let(:spool_size) { 4 }
+        subject(:codec) { LogStash::Codecs::CompressSpooler.new("spool_size" => spool_size) }
+        let(:data) { {"foo" => "bar", "baz" => {"bah" => ["a","b","c"]}, "@timestamp" => "2014-05-30T02:52:17.929Z" } }
+
+        before(:each) do
+          codec.on_event{|data| results << data}
+          spool_size.times do
+            codec.encode(event)
+          end
+        end
+
+        it "dont't lost messages fireing the compression process" do
+          2.times { codec.encode(event) }
+          buffer= codec.instance_variable_get(:@buffer)
+          expect(buffer.size).to eq(2)
+        end
+      end
+    end
   end
 end
