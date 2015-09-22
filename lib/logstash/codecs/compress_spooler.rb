@@ -31,7 +31,7 @@ class LogStash::Codecs::CompressSpooler < LogStash::Codecs::Base
     end
   end # def encode
 
-  def teardown
+  def close
     return if @buffer.empty?
     @on_event.call(compress(@buffer, @compress_level))
     @buffer.clear

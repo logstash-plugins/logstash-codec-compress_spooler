@@ -7,14 +7,14 @@ describe LogStash::Codecs::CompressSpooler do
 
   subject(:codec) { LogStash::Codecs::CompressSpooler.new }
 
-  describe "register and teardown" do
+  describe "register and close" do
 
     it "registers without any error" do
       expect { codec.register }.to_not raise_error
     end
 
     it "tearndown without erros" do
-      expect { codec.teardown }.to_not raise_error
+      expect { codec.close }.to_not raise_error
     end
 
   end
@@ -115,13 +115,13 @@ describe LogStash::Codecs::CompressSpooler do
       include_examples "Encoding data"
     end
 
-    context "when flussing pending data during teardown" do
+    context "when flussing pending data during close" do
       let(:data)  { {"foo" => "bar", "baz" => {"bah" => ["a","b","c"]}, "@timestamp" => "2014-05-30T02:52:17.929Z"} }
 
       before(:each) do
         codec.on_event{|data| results << data}
         codec.encode(event)
-        codec.teardown
+        codec.close
       end
       include_examples "Encoding data"
 
