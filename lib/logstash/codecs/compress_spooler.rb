@@ -31,7 +31,7 @@ class LogStash::Codecs::CompressSpooler < LogStash::Codecs::Base
     # MessagePack#pack which relies on pure Ruby object recognition
     @buffer << LogStash::Util.normalize(event.to_hash).merge(LogStash::Event::TIMESTAMP => event.timestamp.to_iso8601)
     # If necessary, we flush the buffer and get the data compressed
-    if @buffer.length >= @spool_size || (@min_flush_time > 0 && (@last_flush + @min_flush_time < Time.now.to_i))
+    if @buffer.length >= @spool_size || time_to_flush?
       @on_event.call(compress(@buffer, @compress_level))
       @buffer.clear
       @last_flush = Time.now.to_i
@@ -60,4 +60,9 @@ class LogStash::Codecs::CompressSpooler < LogStash::Codecs::Base
     z.close
     result
   end
+
+  def time_to_flush?
+    return @min_flush_time > 0 && (@last_flush + @min_flush_time < Time.now.to_i)
+  end
+
 end # class LogStash::Codecs::CompressSpooler
