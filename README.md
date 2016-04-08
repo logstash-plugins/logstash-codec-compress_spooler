@@ -1,7 +1,6 @@
 # Logstash Plugin
 
-[![Build
-Status](http://build-eu-00.elastic.co/view/LS%20Plugins/view/LS%20Codecs/job/logstash-plugin-codec-compress_spooler-unit/badge/icon)](http://build-eu-00.elastic.co/view/LS%20Plugins/view/LS%20Codecs/job/logstash-plugin-codec-compress_spooler-unit/)
+[![Travis Build Status](https://travis-ci.org/logstash-plugins/logstash-codec-compress_spooler.svg)](https://travis-ci.org/logstash-plugins/logstash-codec-compress_spooler)
 
 This is a plugin for [Logstash](https://github.com/elastic/logstash).
 
