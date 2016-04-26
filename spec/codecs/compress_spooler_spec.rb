@@ -115,7 +115,7 @@ describe LogStash::Codecs::CompressSpooler do
       include_examples "Encoding data"
     end
 
-    context "when flussing pending data during close" do
+    context "when flushing pending data during close" do
       let(:data)  { {"foo" => "bar", "baz" => {"bah" => ["a","b","c"]}, "@timestamp" => "2014-05-30T02:52:17.929Z"} }
 
       before(:each) do
@@ -125,7 +125,7 @@ describe LogStash::Codecs::CompressSpooler do
       end
       include_examples "Encoding data"
 
-      context "message spooling when flusing events to the compressor" do
+      context "message spooling when flushing events to the compressor" do
         let(:spool_size) { 4 }
         subject(:codec) { LogStash::Codecs::CompressSpooler.new("spool_size" => spool_size) }
         let(:data) { {"foo" => "bar", "baz" => {"bah" => ["a","b","c"]}, "@timestamp" => "2014-05-30T02:52:17.929Z" } }
