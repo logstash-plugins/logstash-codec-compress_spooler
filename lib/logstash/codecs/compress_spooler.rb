@@ -6,12 +6,18 @@ class LogStash::Codecs::CompressSpooler < LogStash::Codecs::Base
   config :spool_size, :validate => :number, :default => 50
   config :compress_level, :validate => :number, :default => 6
 
+  # The amount of time in seconds since last flush before a flush is forced,
+  # on the next event.
+  # Values smaller than 0 disables time based flushing.
+  config :min_flush_time, :validate => :number, :default => 0
+
   public
 
   def register
     require "msgpack"
     require "zlib"
     @buffer = []
+    @last_flush = Time.now.to_i
   end
 
   def decode(data)
@@ -25,9 +31,10 @@ class LogStash::Codecs::CompressSpooler < LogStash::Codecs::Base
     # MessagePack#pack which relies on pure Ruby object recognition
     @buffer << LogStash::Util.normalize(event.to_hash).merge(LogStash::Event::TIMESTAMP => event.timestamp.to_iso8601)
     # If necessary, we flush the buffer and get the data compressed
-    if @buffer.length >= @spool_size
+    if @buffer.length >= @spool_size || time_to_flush?
       @on_event.call(event, compress(@buffer, @compress_level))
       @buffer.clear
+      @last_flush = Time.now.to_i
     end
   end # def encode
 
@@ -53,4 +60,9 @@ class LogStash::Codecs::CompressSpooler < LogStash::Codecs::Base
     z.close
     result
   end
+
+  def time_to_flush?
+    return @min_flush_time > 0 && (@last_flush + @min_flush_time < Time.now.to_i)
+  end
+
 end # class LogStash::Codecs::CompressSpooler

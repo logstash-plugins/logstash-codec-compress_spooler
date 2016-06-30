@@ -173,6 +173,33 @@ describe LogStash::Codecs::CompressSpooler do
           expect( ret_events.last).to eq( trig_event)
         end
       end
+
+      context "message spooling if min flush time is set" do
+        let(:spool_size) { 10 }
+        let(:min_flush_time) { 2 }
+        let(:compress_spooler_config) { { "spool_size" => spool_size, "min_flush_time" => min_flush_time } } 
+        subject(:codec) { LogStash::Codecs::CompressSpooler.new(compress_spooler_config) }
+        let(:data) { {"foo" => "bar"} }
+
+        it "dont'f flush the initial messages, but flush after min flush time on next message" do
+          codec.encode(event)
+          buffer= codec.instance_variable_get(:@buffer)
+          expect(buffer.size).to eq(1)
+
+          codec.encode(event)
+          buffer= codec.instance_variable_get(:@buffer)
+          expect(buffer.size).to eq(2)
+
+          sleep(min_flush_time + 1)
+
+          buffer= codec.instance_variable_get(:@buffer)
+          expect(buffer.size).to eq(2)
+
+          codec.encode(event)
+          buffer= codec.instance_variable_get(:@buffer)
+          expect(buffer.size).to eq(0)
+        end
+      end
     end
   end
 end
