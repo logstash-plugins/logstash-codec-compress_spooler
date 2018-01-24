@@ -20,7 +20,7 @@ include::{include_path}/plugin_header.asciidoc[]
 
 ==== Description
 
-
+A codec that processes compressed spooled data.
 
 [id="plugins-{type}s-{plugin}-options"]
 ==== Compress_spooler Codec Configuration Options
