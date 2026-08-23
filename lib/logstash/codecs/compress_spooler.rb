@@ -32,7 +32,7 @@ class LogStash::Codecs::CompressSpooler < LogStash::Codecs::Base
     @buffer << LogStash::Util.normalize(event.to_hash).merge(LogStash::Event::TIMESTAMP => event.timestamp.to_iso8601)
     # If necessary, we flush the buffer and get the data compressed
     if @buffer.length >= @spool_size || time_to_flush?
-      @on_event.call(compress(@buffer, @compress_level))
+      @on_event.call(event, compress(@buffer, @compress_level))
       @buffer.clear
       @last_flush = Time.now.to_i
     end
@@ -40,7 +40,7 @@ class LogStash::Codecs::CompressSpooler < LogStash::Codecs::Base
 
   def close
     return if @buffer.empty?
-    @on_event.call(compress(@buffer, @compress_level))
+    @on_event.call(@buffer.last, compress(@buffer, @compress_level))
     @buffer.clear
   end
 

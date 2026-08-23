@@ -82,6 +82,11 @@ describe LogStash::Codecs::CompressSpooler do
       it "return the timestamp as iso8601" do
         expect(unpack_event["@timestamp"]).to eq(event["@timestamp"].to_iso8601)
       end
+
+      it "passes the last event received to the on_event call back" do
+        expect( ret_events.last).to eq( event)
+      end
+
     end
 
   end
@@ -89,15 +94,20 @@ describe LogStash::Codecs::CompressSpooler do
   describe "#encode" do
     subject(:codec) { LogStash::Codecs::CompressSpooler.new("spool_size" => 1) }
 
-    let(:event)     { LogStash::Event.new(data) }
-    let(:results)   { [] }
+    let(:event)      { LogStash::Event.new(data) }
+    let(:results)    { [] }
+    let(:ret_events) { [] }
+
 
     context "encoding a ruby hash" do
 
       let(:data) { {"foo" => "bar", "baz" => {"bah" => ["a","b","c"]}, "@timestamp" => "2014-05-30T02:52:17.929Z"} }
 
       before(:each) do
-        codec.on_event{|data| results << data}
+        codec.on_event{|ev, data|
+          results    << data
+          ret_events << ev
+        }
         codec.encode(event)
       end
 
@@ -109,17 +119,25 @@ describe LogStash::Codecs::CompressSpooler do
       let(:data) { LogStash::Json.load('{"foo": "bar", "baz": {"bah": ["a","b","c"]}, "@timestamp": "2014-05-30T02:52:17.929Z"}') }
 
       before(:each) do
-        codec.on_event{|data| results << data}
+        codec.on_event{|ev, data|
+          results    << data
+          ret_events << ev
+        }
         codec.encode(event)
       end
       include_examples "Encoding data"
+
+
     end
 
     context "when flussing pending data during close" do
       let(:data)  { {"foo" => "bar", "baz" => {"bah" => ["a","b","c"]}, "@timestamp" => "2014-05-30T02:52:17.929Z"} }
 
       before(:each) do
-        codec.on_event{|data| results << data}
+        codec.on_event{|ev, data|
+          results    << data
+          ret_events << ev
+        }
         codec.encode(event)
         codec.close
       end
@@ -127,20 +145,32 @@ describe LogStash::Codecs::CompressSpooler do
 
       context "message spooling when flusing events to the compressor" do
         let(:spool_size) { 4 }
-        subject(:codec) { LogStash::Codecs::CompressSpooler.new("spool_size" => spool_size) }
-        let(:data) { {"foo" => "bar", "baz" => {"bah" => ["a","b","c"]}, "@timestamp" => "2014-05-30T02:52:17.929Z" } }
+        subject(:codec)  { LogStash::Codecs::CompressSpooler.new("spool_size" => spool_size) }
+        let(:data)       { {"foo" => "bar", "baz" => {"bah" => ["a","b","c"]}, "@timestamp" => "2014-05-30T02:52:17.929Z" } }
+        let(:results)    { [] }
+        let(:trig_data)  { {"bar" => "foo", "stuff" => {"array" => ["a","b","c"]}, "@timestamp" => "2016-03-30T11:03:33.929Z" } }
+        let(:trig_event) { LogStash::Event.new(trig_data) }
+
 
         before(:each) do
-          codec.on_event{|data| results << data}
-          spool_size.times do
+          codec.on_event{|ev, data|
+            results << data
+            ret_events << ev
+          }
+          (spool_size - 1).times do
             codec.encode(event)
           end
+          codec.encode( trig_event)
         end
 
         it "dont't lost messages fireing the compression process" do
           2.times { codec.encode(event) }
           buffer= codec.instance_variable_get(:@buffer)
           expect(buffer.size).to eq(2)
+        end
+
+        it "calls the on_event callback with the last event passed, on buffer full" do
+          expect( ret_events.last).to eq( trig_event)
         end
       end
 
